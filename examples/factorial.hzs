@@ -1,0 +1,28 @@
+; factorial.hzs — compute 5! = 120 recursively
+; Demonstrates: recursive CALL, callee-cleans convention
+
+PUSH.I32 5
+CALL @fact 1    ; call fact with 1 argument (n=5)
+RET.VAL
+
+fact:
+    ; arg 0 = n
+    ENTER 0
+    ARG.GET 0
+    PUSH.I32 1
+    I32.LE_S
+    JNZ @fact_base    ; n <= 1 → return 1
+
+    ARG.GET 0
+    PUSH.I32 1
+    I32.SUB
+    CALL @fact 1      ; fact(n-1); args cleaned by callee
+    ARG.GET 0         ; n is still accessible (stack cleaned up to base)
+    I32.MUL
+    LEAVE
+    RET.VAL
+
+fact_base:
+    PUSH.I32 1
+    LEAVE
+    RET.VAL

@@ -22,7 +22,7 @@ export class CPU {
   interruptsEnabled = true;
 
   private readonly operandStack: StackValue[] = [];
-  private readonly callStack: Array<{ retPc: number; retRing: Ring; fp: number }> = [];
+  private readonly callStack: Array<{ retPc: number; retRing: Ring; fp: number; base: number }> = [];
   private readonly locals: StackValue[][] = [];
   private fp = 0;
 
@@ -254,27 +254,33 @@ export class CPU {
       case Opcode.JZ:  { const off = this.readPcI32(); if (asI32(this.pop()) === 0) this.pc = (this.pc + off) >>> 0; break; }
       case Opcode.JNZ: { const off = this.readPcI32(); if (asI32(this.pop()) !== 0) this.pc = (this.pc + off) >>> 0; break; }
       case Opcode.CALL: {
+        const nArgs = this.readPcByte();  // u8: number of args already on stack
         const off = this.readPcI32();
         const retPc = this.pc;
-        this.callStack.push({ retPc, retRing: this.ring, fp: this.fp });
+        const newFp = this.operandStack.length;
+        const base = newFp - nArgs;
+        this.callStack.push({ retPc, retRing: this.ring, fp: this.fp, base });
         this.locals.push([]);
-        this.fp = this.operandStack.length;
-        this.pc = (retPc - 4 + off) >>> 0;
+        this.fp = newFp;
+        this.pc = (retPc + off) >>> 0;
         break;
       }
       case Opcode.CALL_IND: {
+        const nArgs = this.readPcByte();
         const addr = asPtr(this.pop());
-        const retPc = this.pc;
-        this.callStack.push({ retPc, retRing: this.ring, fp: this.fp });
+        const newFp = this.operandStack.length;
+        const base = newFp - nArgs;
+        this.callStack.push({ retPc: this.pc, retRing: this.ring, fp: this.fp, base });
         this.locals.push([]);
-        this.fp = this.operandStack.length;
+        this.fp = newFp;
         this.pc = addr;
         break;
       }
       case Opcode.RET: {
         const frame = this.callStack.pop();
-        if (!frame) throw fault(InterruptVector.StackFault, 'RET with empty call stack');
+        if (!frame) { this.halted = true; return false; }
         this.locals.pop();
+        this.operandStack.length = frame.base;
         this.pc = frame.retPc;
         this.ring = frame.retRing;
         this.fp = frame.fp;
@@ -283,8 +289,9 @@ export class CPU {
       case Opcode.RET_VAL: {
         const retVal = this.pop();
         const frame = this.callStack.pop();
-        if (!frame) throw fault(InterruptVector.StackFault, 'RET.VAL with empty call stack');
+        if (!frame) { this.push(retVal); this.halted = true; return false; }
         this.locals.pop();
+        this.operandStack.length = frame.base;
         this.pc = frame.retPc;
         this.ring = frame.retRing;
         this.fp = frame.fp;
@@ -352,7 +359,7 @@ export class CPU {
       // ── Privilege ─────────────────────────────────────────────
       case Opcode.SYSCALL: {
         const num = this.readPcU16();
-        this.callStack.push({ retPc: this.pc, retRing: this.ring, fp: this.fp });
+        this.callStack.push({ retPc: this.pc, retRing: this.ring, fp: this.fp, base: this.fp });
         this.locals.push([]);
         this.ring = Ring.Kernel;
         this.onSyscall(num, this);
@@ -370,7 +377,7 @@ export class CPU {
       case Opcode.HYPERCALL: {
         const num = this.readPcU16();
         this.requireRing(Ring.Kernel, 'HYPERCALL');
-        this.callStack.push({ retPc: this.pc, retRing: this.ring, fp: this.fp });
+        this.callStack.push({ retPc: this.pc, retRing: this.ring, fp: this.fp, base: this.fp });
         this.locals.push([]);
         this.ring = Ring.Hypervisor;
         this.onHypercall(num, this);
@@ -409,9 +416,8 @@ export class CPU {
       case Opcode.IVT_SET:  { this.requireRing(Ring.Hypervisor, 'IVT.SET');  this.ivt = asPtr(this.pop()); break; }
       case Opcode.INT: {
         const vec = this.readPcByte();
-        // Dispatch via IVT — simplified: call handler at ivt + vec*4
         const handlerAddr = this.mem.read32(this.ivt + vec * 4, Ring.Hypervisor);
-        this.callStack.push({ retPc: this.pc, retRing: this.ring, fp: this.fp });
+        this.callStack.push({ retPc: this.pc, retRing: this.ring, fp: this.fp, base: this.fp });
         this.locals.push([]);
         this.pc = handlerAddr >>> 0;
         break;

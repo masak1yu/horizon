@@ -236,13 +236,22 @@ export function assemble(src: string): AssemblyResult {
         break;
       }
       case 'CALL': {
+        // Syntax: CALL @label nargs
         buf.push(Opcode.CALL);
         const ref = expectLabelRef();
+        const nArgs = parseInt_(tokens[ti]?.kind === 'int' ? tokens[ti++].value : '0');
+        buf.push(nArgs & 0xFF);  // u8 arg count
         patches.push({ bufOffset: buf.length, labelName: ref, instrStart });
         writeI32LE(buf, 0);
         break;
       }
-      case 'CALL.IND': buf.push(Opcode.CALL_IND); break;
+      case 'CALL.IND': {
+        // Syntax: CALL.IND nargs
+        buf.push(Opcode.CALL_IND);
+        const nArgs = parseInt_(tokens[ti]?.kind === 'int' ? tokens[ti++].value : '0');
+        buf.push(nArgs & 0xFF);
+        break;
+      }
       case 'RET':      buf.push(Opcode.RET); break;
       case 'RET.VAL':  buf.push(Opcode.RET_VAL); break;
 

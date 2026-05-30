@@ -179,10 +179,10 @@ Branch offsets are `i32` values relative to the start of the **next** instructio
 | `0x80` | `JMP` | `offset:i32` | `(--)` | Unconditional jump |
 | `0x81` | `JZ` | `offset:i32` | `(cond --)` | Jump if `cond == 0` |
 | `0x82` | `JNZ` | `offset:i32` | `(cond --)` | Jump if `cond != 0` |
-| `0x83` | `CALL` | `offset:i32` | `(--)` | Call subroutine (relative) |
-| `0x84` | `CALL.IND` | — | `(addr --)` | Indirect call via address on stack |
-| `0x85` | `RET` | — | `(--)` | Return from subroutine (no value) |
-| `0x86` | `RET.VAL` | — | `(val --)` | Return with value on stack |
+| `0x83` | `CALL` | `n_args:u8, offset:i32` | `(--)` | Call subroutine (relative). `n_args` args are on the stack; `RET`/`RET.VAL` cleans them. |
+| `0x84` | `CALL.IND` | `n_args:u8` | `(addr --)` | Indirect call via address on stack. |
+| `0x85` | `RET` | — | `(--)` | Return from subroutine; cleans `n_args` args from stack. |
+| `0x86` | `RET.VAL` | — | `(val -- val)` | Return with value; cleans args, pushes return value. |
 
 ### 4.10 Local Variables / Call Frame
 
@@ -193,6 +193,17 @@ Branch offsets are `i32` values relative to the start of the **next** instructio
 | `0x92` | `LOCAL.GET` | `idx:u16` | `(-- val)` | Push local variable |
 | `0x93` | `LOCAL.SET` | `idx:u16` | `(val --)` | Pop to local variable |
 | `0x94` | `ARG.GET` | `idx:u16` | `(-- val)` | Push argument (caller-pushed) |
+
+### 4.10.1 Calling Convention
+
+The Horizon VM uses a **callee-cleans** convention:
+
+1. Caller pushes arguments left-to-right (arg 0 pushed first, arg N-1 pushed last — last is on top).
+2. Caller executes `CALL n_args @label` where `n_args` matches the number of pushed arguments.
+3. Inside the callee, `ARG.GET 0` retrieves the last-pushed argument (arg N-1), `ARG.GET N-1` retrieves the first.
+4. On `RET.VAL`, the VM automatically truncates the operand stack back to the pre-argument depth and pushes the return value. The caller does not need to clean up arguments.
+
+This ensures the operand stack is clean after every function return, with no manual `POP` instructions required for argument cleanup.
 
 ### 4.11 Type Conversion
 

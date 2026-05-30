@@ -1,66 +1,63 @@
-; fibonacci.hzs — compute fib(10) iteratively
-; Stack result: 55
+; fibonacci.hzs — compute fib(10) = 55 iteratively
+; Demonstrates: ENTER/LEAVE, LOCAL.GET/SET, ARG.GET, JMP, CALL, RET.VAL
 
-    PUSH.I32 10       ; n = 10
-    CALL @fib
-    RET.VAL
+PUSH.I32 10
+CALL @fib 1     ; call fib with 1 argument
+RET.VAL
 
 fib:
     ; arg 0 = n
-    ENTER 2           ; local 0 = a, local 1 = b
+    ; locals: 0=a, 1=b, 2=i
+    ENTER 3
     PUSH.I32 0
     LOCAL.SET 0       ; a = 0
     PUSH.I32 1
     LOCAL.SET 1       ; b = 1
+    PUSH.I32 2
+    LOCAL.SET 2       ; i = 2
 
-    ARG.GET 0         ; load n
+    ARG.GET 0
     PUSH.I32 0
     I32.LE_S
-    JNZ @done_zero    ; if n <= 0, return 0
+    JNZ @fib_zero     ; n <= 0 → return 0
 
     ARG.GET 0
     PUSH.I32 1
     I32.EQ
-    JNZ @done_one     ; if n == 1, return 1
+    JNZ @fib_one      ; n == 1 → return 1
 
-    PUSH.I32 2
-    LOCAL.SET 0       ; reuse local 0 as loop counter i = 2
-
-loop:
-    LOCAL.GET 0       ; i
+fib_loop:
+    LOCAL.GET 2       ; i
     ARG.GET 0         ; n
     I32.GT_S
-    JNZ @done         ; if i > n, break
+    JNZ @fib_done     ; i > n → done
 
     LOCAL.GET 0       ; a
     LOCAL.GET 1       ; b
     I32.ADD           ; a + b
-    LOCAL.GET 1       ; old b
-    LOCAL.SET 0       ; a = old b  -- actually we need tmp
-    ; This is slightly wrong due to stack ordering; using temp via stack
-    ; Stack: [a+b, old_b] at this point
-    ; Correct sequence: push a, push b, add, store to b, old_b to a
-    ; Rewrite properly:
-    POP               ; discard old b we pushed for a
-    POP               ; discard a+b
-    ; recompute correctly using only the two locals:
-    LOCAL.GET 1       ; b
-    LOCAL.GET 0       ; a (i counter — invalid)
-    ; NOTE: This example shows the need for a proper local layout.
-    ; See fibonacci_correct.hzs for the correct version.
-    NOP
 
-done:
-    LOCAL.GET 1
+    LOCAL.GET 1       ; old b
+    LOCAL.SET 0       ; a = old b
+    LOCAL.SET 1       ; b = a + b (result of ADD)
+
+    LOCAL.GET 2
+    PUSH.I32 1
+    I32.ADD
+    LOCAL.SET 2       ; i++
+
+    JMP @fib_loop
+
+fib_done:
+    LOCAL.GET 1       ; return b
     LEAVE
     RET.VAL
 
-done_zero:
+fib_zero:
     PUSH.I32 0
     LEAVE
     RET.VAL
 
-done_one:
+fib_one:
     PUSH.I32 1
     LEAVE
     RET.VAL
