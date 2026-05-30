@@ -1,0 +1,8 @@
+; hello.hzs — Horizon VM assembly example
+; Computes 3 + 4 and leaves the result on the stack
+; Run with: node dist/vm/cli.js examples/hello.hzbc
+
+    PUSH.I32 3
+    PUSH.I32 4
+    I32.ADD
+    RET.VAL

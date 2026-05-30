@@ -1,0 +1,19 @@
+{
+  "name": "horizon-vm",
+  "version": "0.1.0",
+  "description": "Horizon VM – A browser-native virtual machine specification and reference implementation",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest",
+    "assemble": "node dist/assembler/cli.js",
+    "run-vm": "node dist/vm/cli.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "jest": "^29.0.0",
+    "@jest/globals": "^29.0.0",
+    "ts-jest": "^29.0.0"
+  }
+}
