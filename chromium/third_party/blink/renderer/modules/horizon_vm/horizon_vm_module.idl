@@ -1,0 +1,12 @@
+[
+  Exposed=(Window,DedicatedWorker,SharedWorker),
+  SecureContext,
+  RuntimeEnabled=HorizonVM
+]
+interface HorizonVMModule {
+  [CallWith=ScriptState, RaisesException]
+  Promise<HorizonVMInstance> instantiate(optional HorizonVMImports imports = {});
+
+  readonly attribute unsigned short minRing;
+  readonly attribute DOMString name;
+};

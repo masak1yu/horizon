@@ -13,7 +13,6 @@ blink_modules_sources("horizon_vm") {
     "horizon_vm.h",
     "horizon_vm_instance.cc",
     "horizon_vm_instance.h",
-    "horizon_vm_memory.cc",
     "horizon_vm_memory.h",
     "horizon_vm_module.cc",
     "horizon_vm_module.h",

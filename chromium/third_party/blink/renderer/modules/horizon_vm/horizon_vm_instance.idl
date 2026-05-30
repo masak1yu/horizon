@@ -1,0 +1,16 @@
+[
+  Exposed=(Window,DedicatedWorker,SharedWorker),
+  SecureContext,
+  RuntimeEnabled=HorizonVM
+]
+interface HorizonVMInstance : EventTarget {
+  [CallWith=ScriptState, RaisesException]
+  Promise<undefined> run();
+
+  readonly attribute HorizonVMMemory memory;
+  readonly attribute unsigned short ring;
+
+  attribute EventHandler onhalt;
+  attribute EventHandler onfault;
+  attribute EventHandler onoutput;
+};
