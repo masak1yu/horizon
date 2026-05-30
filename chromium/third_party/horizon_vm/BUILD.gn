@@ -1,0 +1,35 @@
+# GN build file for Horizon VM C++ core.
+# Place at: third_party/horizon_vm/BUILD.gn
+
+config("horizon_vm_config") {
+  include_dirs = [ "src/cpp/include" ]
+}
+
+source_set("horizon_vm") {
+  sources = [
+    "src/cpp/src/cpu.cc",
+    "src/cpp/src/loader.cc",
+    "src/cpp/src/memory.cc",
+  ]
+
+  public = [
+    "src/cpp/include/horizon_vm/cpu.h",
+    "src/cpp/include/horizon_vm/loader.h",
+    "src/cpp/include/horizon_vm/memory.h",
+    "src/cpp/include/horizon_vm/opcodes.h",
+    "src/cpp/include/horizon_vm/types.h",
+  ]
+
+  public_configs = [ ":horizon_vm_config" ]
+
+  configs += [ "//build/config/compiler:cxx_version_default" ]
+}
+
+# Standalone test binary (outside Chromium, for CI)
+if (!is_component_build) {
+  executable("hz_test") {
+    testonly = true
+    sources = [ "src/cpp/src/main_test.cc" ]
+    deps = [ ":horizon_vm" ]
+  }
+}

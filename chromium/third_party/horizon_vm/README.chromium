@@ -1,0 +1,20 @@
+Name: Horizon VM
+Short Name: horizon_vm
+URL: https://github.com/masak1yu/horizon
+Version: 0.1.0
+License: Apache 2.0
+License File: LICENSE
+Security Critical: yes
+
+Description:
+Horizon VM is a browser-native virtual machine specification and reference
+implementation. It provides a stack-based bytecode execution engine with
+ring-based privilege levels (hypervisor/kernel/user), page-protected memory,
+and a virtual filesystem.
+
+This library implements the VM core (CPU, memory model, bytecode loader) in
+platform-independent C++17. The Blink integration lives at:
+  third_party/blink/renderer/modules/horizon_vm/
+
+Local Modifications:
+None. This is the upstream reference implementation.

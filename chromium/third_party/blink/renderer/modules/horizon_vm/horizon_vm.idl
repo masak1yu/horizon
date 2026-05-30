@@ -1,0 +1,102 @@
+// Horizon VM Web API — WebIDL definition
+// Mirrors the WebAssembly API structure for familiarity.
+
+[
+  Exposed=(Window,DedicatedWorker,SharedWorker),
+  SecureContext,
+  RuntimeEnabled=HorizonVM
+]
+namespace HorizonVM {
+  // Compile a .hzbc module from an ArrayBuffer / TypedArray.
+  [CallWith=ScriptState, RaisesException]
+  Promise<HorizonVMModule> compile(BufferSource bytes);
+
+  // Compile from a streaming Fetch Response (allows progressive decoding).
+  [CallWith=ScriptState, RaisesException]
+  Promise<HorizonVMModule> compileStreaming(Promise<Response> source);
+
+  // Validate bytecode without compiling (returns true if valid).
+  [CallWith=ScriptState]
+  Promise<boolean> validate(BufferSource bytes);
+};
+
+[
+  Exposed=(Window,DedicatedWorker,SharedWorker),
+  SecureContext,
+  RuntimeEnabled=HorizonVM
+]
+interface HorizonVMModule {
+  // Instantiate the module into a runnable instance.
+  [CallWith=ScriptState, RaisesException]
+  Promise<HorizonVMInstance> instantiate(optional HorizonVMImports imports);
+
+  // Minimum ring level required to load (0=hypervisor, 1=kernel, 2=user).
+  readonly attribute unsigned short minRing;
+
+  // Human-readable module name from .meta section (empty if absent).
+  readonly attribute DOMString name;
+};
+
+dictionary HorizonVMImports {
+  // Memory to share with the instance (if pre-allocated by the host).
+  HorizonVMMemory? memory;
+
+  // Callback table for host-provided syscall/hypercall handlers.
+  HorizonVMCallbacks? callbacks;
+};
+
+dictionary HorizonVMCallbacks {
+  // Called when the program writes to stdout (via SYS_WRITE fd=1).
+  HorizonOutputCallback? onOutput;
+
+  // Called when the program writes to stderr (via SYS_WRITE fd=2).
+  HorizonOutputCallback? onError;
+};
+
+callback HorizonOutputCallback = undefined (DOMString text);
+
+[
+  Exposed=(Window,DedicatedWorker,SharedWorker),
+  SecureContext,
+  RuntimeEnabled=HorizonVM
+]
+interface HorizonVMInstance {
+  // Start execution from the module entry point.
+  // Resolves when the program halts (via HALT or top-level RET).
+  // Rejects on VM fault.
+  [CallWith=ScriptState, RaisesException]
+  Promise<undefined> run();
+
+  // The instance's linear memory, exposed as ArrayBuffer.
+  readonly attribute HorizonVMMemory memory;
+
+  // Current ring level (2=user, 1=kernel, 0=hypervisor).
+  readonly attribute unsigned short ring;
+
+  // Fired when the VM halts cleanly.
+  attribute EventHandler onhalt;
+
+  // Fired when a VM fault occurs.
+  attribute EventHandler onfault;
+};
+
+[
+  Exposed=(Window,DedicatedWorker,SharedWorker),
+  SecureContext,
+  RuntimeEnabled=HorizonVM
+]
+interface HorizonVMMemory {
+  constructor(HorizonVMMemoryDescriptor descriptor);
+
+  // Grow memory by the given number of pages (4 KiB each).
+  // Returns previous size in pages, or -1 on failure.
+  unsigned long grow(unsigned long delta);
+
+  // Direct access to the backing buffer.
+  readonly attribute ArrayBuffer buffer;
+};
+
+dictionary HorizonVMMemoryDescriptor {
+  required unsigned long initial;    // initial size in pages
+  unsigned long maximum;             // maximum size in pages
+};

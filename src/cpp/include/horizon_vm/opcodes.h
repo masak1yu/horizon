@@ -1,0 +1,218 @@
+#pragma once
+#include <cstdint>
+
+namespace horizon {
+
+enum class Opcode : uint8_t {
+  // Control
+  NOP          = 0x00,
+  HALT         = 0x01,
+  BRK          = 0x02,
+
+  // Stack
+  PUSH_I32     = 0x10,
+  PUSH_I64     = 0x11,
+  PUSH_F32     = 0x12,
+  PUSH_F64     = 0x13,
+  POP          = 0x14,
+  DUP          = 0x15,
+  SWAP         = 0x16,
+  OVER         = 0x17,
+
+  // i32 arithmetic
+  I32_ADD      = 0x20,
+  I32_SUB      = 0x21,
+  I32_MUL      = 0x22,
+  I32_DIV_S    = 0x23,
+  I32_DIV_U    = 0x24,
+  I32_REM_S    = 0x25,
+  I32_REM_U    = 0x26,
+  I32_NEG      = 0x27,
+
+  // i64 arithmetic
+  I64_ADD      = 0x28,
+  I64_SUB      = 0x29,
+  I64_MUL      = 0x2A,
+  I64_DIV_S    = 0x2B,
+  I64_DIV_U    = 0x2C,
+  I64_REM_S    = 0x2D,
+  I64_REM_U    = 0x2E,
+  I64_NEG      = 0x2F,
+
+  // float arithmetic
+  F32_ADD      = 0x30,
+  F32_SUB      = 0x31,
+  F32_MUL      = 0x32,
+  F32_DIV      = 0x33,
+  F64_ADD      = 0x34,
+  F64_SUB      = 0x35,
+  F64_MUL      = 0x36,
+  F64_DIV      = 0x37,
+
+  // i32 bitwise
+  I32_AND      = 0x40,
+  I32_OR       = 0x41,
+  I32_XOR      = 0x42,
+  I32_NOT      = 0x43,
+  I32_SHL      = 0x44,
+  I32_SHR_S    = 0x45,
+  I32_SHR_U    = 0x46,
+
+  // i64 bitwise
+  I64_AND      = 0x47,
+  I64_OR       = 0x48,
+  I64_XOR      = 0x49,
+  I64_NOT      = 0x4A,
+  I64_SHL      = 0x4B,
+  I64_SHR_S    = 0x4C,
+  I64_SHR_U    = 0x4D,
+
+  // i32 comparison
+  I32_EQ       = 0x50,
+  I32_NE       = 0x51,
+  I32_LT_S     = 0x52,
+  I32_LT_U     = 0x53,
+  I32_LE_S     = 0x54,
+  I32_LE_U     = 0x55,
+  I32_GT_S     = 0x56,
+  I32_GT_U     = 0x57,
+  I32_GE_S     = 0x58,
+  I32_GE_U     = 0x59,
+
+  // i64 comparison
+  I64_EQ       = 0x5A,
+  I64_NE       = 0x5B,
+  I64_LT_S     = 0x5C,
+  I64_LT_U     = 0x5D,
+  I64_LE_S     = 0x5E,
+  I64_LE_U     = 0x5F,
+
+  // float comparison
+  F32_EQ       = 0x60,
+  F32_LT       = 0x61,
+  F32_LE       = 0x62,
+  F64_EQ       = 0x63,
+  F64_LT       = 0x64,
+  F64_LE       = 0x65,
+
+  // Memory
+  LOAD_I8S     = 0x70,
+  LOAD_I8U     = 0x71,
+  LOAD_I16S    = 0x72,
+  LOAD_I16U    = 0x73,
+  LOAD_I32     = 0x74,
+  LOAD_I64     = 0x75,
+  LOAD_F32     = 0x76,
+  LOAD_F64     = 0x77,
+  STORE_I8     = 0x78,
+  STORE_I16    = 0x79,
+  STORE_I32    = 0x7A,
+  STORE_I64    = 0x7B,
+  STORE_F32    = 0x7C,
+  STORE_F64    = 0x7D,
+
+  // Control flow
+  JMP          = 0x80,
+  JZ           = 0x81,
+  JNZ          = 0x82,
+  CALL         = 0x83,  // u8 n_args, i32 offset
+  CALL_IND     = 0x84,  // u8 n_args; addr from stack
+  RET          = 0x85,
+  RET_VAL      = 0x86,
+
+  // Frame
+  ENTER        = 0x90,  // u16 n_locals
+  LEAVE        = 0x91,
+  LOCAL_GET    = 0x92,  // u16 idx
+  LOCAL_SET    = 0x93,  // u16 idx
+  ARG_GET      = 0x94,  // u16 idx
+
+  // Type conversion
+  I32_EXTEND_S     = 0xA0,
+  I32_EXTEND_U     = 0xA1,
+  I64_WRAP         = 0xA2,
+  F32_DEMOTE       = 0xA3,
+  F64_PROMOTE      = 0xA4,
+  I32_TRUNC_F32_S  = 0xA5,
+  I32_TRUNC_F32_U  = 0xA6,
+  I32_TRUNC_F64_S  = 0xA7,
+  I32_TRUNC_F64_U  = 0xA8,
+  I64_TRUNC_F32_S  = 0xA9,
+  I64_TRUNC_F32_U  = 0xAA,
+  I64_TRUNC_F64_S  = 0xAB,
+  I64_TRUNC_F64_U  = 0xAC,
+  F32_CONVERT_I32_S = 0xAD,
+  F32_CONVERT_I32_U = 0xAE,
+  F32_CONVERT_I64_S = 0xAF,
+  F32_CONVERT_I64_U = 0xB0,
+  F64_CONVERT_I32_S = 0xB1,
+  F64_CONVERT_I32_U = 0xB2,
+  F64_CONVERT_I64_S = 0xB3,
+  F64_CONVERT_I64_U = 0xB4,
+
+  // Privilege
+  SYSCALL      = 0xC0,  // u16 num
+  SYSRET       = 0xC1,
+  HYPERCALL    = 0xC2,  // u16 num
+  HYPERET      = 0xC3,
+  INT          = 0xC4,  // u8 vector
+  IRET         = 0xC5,
+  CLI          = 0xC6,
+  STI          = 0xC7,
+  RING_GET     = 0xC8,
+  PAGE_MAP     = 0xC9,
+  PAGE_UNMAP   = 0xCA,
+  PTBR_SET     = 0xCB,
+  PTBR_GET     = 0xCC,
+  IVT_SET      = 0xCD,
+  PART_CREATE  = 0xCE,
+  PART_DESTROY = 0xCF,
+};
+
+enum class Ring : uint8_t {
+  Hypervisor = 0,
+  Kernel     = 1,
+  User       = 2,
+};
+
+enum class InterruptVector : uint8_t {
+  DivideByZero = 0x00,
+  Debug        = 0x01,
+  Breakpoint   = 0x02,
+  StackFault   = 0x0C,
+  GPF          = 0x0D,
+  PageFault    = 0x0E,
+};
+
+enum class HypercallNum : uint16_t {
+  MEM_ALLOC          = 0x0001,
+  MEM_FREE           = 0x0002,
+  MEM_SHARE          = 0x0003,
+  MEM_UNSHARE        = 0x0004,
+  PART_CREATE        = 0x0010,
+  PART_DESTROY       = 0x0011,
+  PART_YIELD         = 0x0012,
+  PART_SLEEP         = 0x0013,
+  PART_SELF          = 0x0014,
+  SET_SYSCALL_TABLE  = 0x0020,
+  STORAGE_OPEN       = 0x0030,
+  STORAGE_READ       = 0x0031,
+  STORAGE_WRITE      = 0x0032,
+  STORAGE_CLOSE      = 0x0033,
+  STORAGE_STAT       = 0x0034,
+  STORAGE_READDIR    = 0x0035,
+  STORAGE_MKDIR      = 0x0036,
+  STORAGE_UNLINK     = 0x0037,
+  DISPLAY_GETFB      = 0x0040,
+  DISPLAY_FLUSH      = 0x0041,
+  INPUT_POLL         = 0x0060,
+  NET_CONNECT        = 0x0070,
+  NET_SEND           = 0x0071,
+  NET_RECV           = 0x0072,
+  NET_CLOSE          = 0x0073,
+  NET_FETCH          = 0x0074,
+  TIME_NOW           = 0x0080,
+  TIME_MONOTONIC     = 0x0081,
+};
+
+}  // namespace horizon

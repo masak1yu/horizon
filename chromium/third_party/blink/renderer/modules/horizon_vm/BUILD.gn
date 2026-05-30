@@ -1,0 +1,27 @@
+# GN build file for the Horizon VM Blink module.
+# Place at: third_party/blink/renderer/modules/horizon_vm/BUILD.gn
+#
+# Add this to: third_party/blink/renderer/modules/BUILD.gn
+#   deps += [ "//third_party/blink/renderer/modules/horizon_vm" ]
+
+import("//third_party/blink/renderer/modules/modules.gni")
+import("//build/compiled_action.gni")
+
+blink_modules_sources("horizon_vm") {
+  sources = [
+    "horizon_vm.cc",
+    "horizon_vm.h",
+    "horizon_vm_instance.cc",
+    "horizon_vm_instance.h",
+    "horizon_vm_memory.cc",
+    "horizon_vm_memory.h",
+    "horizon_vm_module.cc",
+    "horizon_vm_module.h",
+  ]
+
+  deps = [
+    "//third_party/horizon_vm",
+    "//third_party/blink/renderer/core",
+    "//third_party/blink/renderer/platform",
+  ]
+}
