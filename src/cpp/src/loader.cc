@@ -1,6 +1,5 @@
 #include "horizon_vm/loader.h"
 #include <cstring>
-#include <stdexcept>
 
 namespace horizon {
 
@@ -15,13 +14,19 @@ T ReadLE(const uint8_t* p) {
 
 }  // namespace
 
-Module ParseModule(const uint8_t* data, size_t size) {
+std::optional<Module> ParseModule(const uint8_t* data, size_t size,
+                                   std::string* error) {
+  auto fail = [error](const char* msg) -> std::optional<Module> {
+    if (error) *error = msg;
+    return std::nullopt;
+  };
+
   if (size < 32)
-    throw std::runtime_error("ParseModule: file too small");
+    return fail("ParseModule: file too small");
 
   uint32_t magic = ReadLE<uint32_t>(data + 0);
   if (magic != kMagic)
-    throw std::runtime_error("ParseModule: invalid magic (not a .hzbc file)");
+    return fail("ParseModule: invalid magic (not a .hzbc file)");
 
   Module m;
   m.version_major = ReadLE<uint16_t>(data + 4);
@@ -33,7 +38,7 @@ Module ParseModule(const uint8_t* data, size_t size) {
 
   size_t section_table_end = 32 + static_cast<size_t>(n_sections) * 20;
   if (size < section_table_end)
-    throw std::runtime_error("ParseModule: truncated section table");
+    return fail("ParseModule: truncated section table");
 
   for (uint16_t i = 0; i < n_sections; ++i) {
     const uint8_t* base = data + 32 + i * 20;
@@ -50,10 +55,13 @@ Module ParseModule(const uint8_t* data, size_t size) {
   return m;
 }
 
-LoadedModule LoadModule(const Module& module, Memory& mem,
-                        uint32_t virt_base, Ring current_ring) {
-  if (module.min_ring < current_ring)
-    throw std::runtime_error("LoadModule: insufficient ring level");
+std::optional<LoadedModule> LoadModule(const Module& module, Memory& mem,
+                                        uint32_t virt_base, Ring current_ring,
+                                        std::string* error) {
+  if (module.min_ring < current_ring) {
+    if (error) *error = "LoadModule: insufficient ring level";
+    return std::nullopt;
+  }
 
   const bool is_kernel     = (module.flags & MODULE_KERNEL) != 0;
   const bool is_hypervisor = (module.flags & MODULE_HYPERVISOR) != 0;
@@ -102,7 +110,7 @@ LoadedModule LoadModule(const Module& module, Memory& mem,
       ? 0xFFFFFFFFu
       : code_base + module.entry_point;
 
-  return {code_base, data_base, rodata_base, entry};
+  return LoadedModule{code_base, data_base, rodata_base, entry};
 }
 
 }  // namespace horizon

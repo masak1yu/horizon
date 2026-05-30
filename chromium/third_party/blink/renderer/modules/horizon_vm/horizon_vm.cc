@@ -15,15 +15,10 @@ namespace blink {
 
 namespace {
 
-// Parse and validate a .hzbc buffer, returning a Module or nullptr on error.
+// Parse and validate a .hzbc buffer, returning a Module or nullopt on error.
 std::optional<horizon::Module> ParseBytecode(const uint8_t* data, size_t size,
                                                std::string& out_error) {
-  try {
-    return horizon::ParseModule(data, size);
-  } catch (const std::exception& e) {
-    out_error = e.what();
-    return std::nullopt;
-  }
+  return horizon::ParseModule(data, size, &out_error);
 }
 
 // Extracts a flat byte span from a V8BufferSource (ArrayBuffer or TypedArray).

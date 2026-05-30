@@ -25,12 +25,12 @@ class Memory {
   void MapPage(uint32_t virt_addr, uint32_t phys_offset, uint8_t flags);
   void UnmapPage(uint32_t virt_addr);
 
-  uint8_t  Read8(uint32_t virt, Ring ring) const;
-  uint16_t Read16(uint32_t virt, Ring ring) const;
-  int32_t  Read32(uint32_t virt, Ring ring) const;
-  int64_t  Read64(uint32_t virt, Ring ring) const;
-  float    ReadF32(uint32_t virt, Ring ring) const;
-  double   ReadF64(uint32_t virt, Ring ring) const;
+  uint8_t  Read8(uint32_t virt, Ring ring);
+  uint16_t Read16(uint32_t virt, Ring ring);
+  int32_t  Read32(uint32_t virt, Ring ring);
+  int64_t  Read64(uint32_t virt, Ring ring);
+  float    ReadF32(uint32_t virt, Ring ring);
+  double   ReadF64(uint32_t virt, Ring ring);
 
   void Write8(uint32_t virt, uint8_t val, Ring ring);
   void Write16(uint32_t virt, uint16_t val, Ring ring);
@@ -45,12 +45,22 @@ class Memory {
 
   size_t total_bytes() const { return physical_.size(); }
 
+  bool has_fault() const { return has_fault_; }
+  const HorizonFault& last_fault() const { return pending_fault_; }
+  HorizonFault take_fault() {
+    has_fault_ = false;
+    return pending_fault_;
+  }
+
  private:
-  uint32_t Resolve(uint32_t virt_addr, uint8_t access_flags, Ring ring) const;
+  void RaiseFault(uint8_t vector, std::string msg, uint32_t addr = 0);
+  uint32_t Resolve(uint32_t virt_addr, uint8_t access_flags, Ring ring);
 
   std::vector<uint8_t> physical_;
   std::unordered_map<uint32_t, PageTableEntry> page_table_;  // key = page number
   uint32_t alloc_ptr_ = 0;
+  bool         has_fault_     = false;
+  HorizonFault pending_fault_;
 };
 
 }  // namespace horizon

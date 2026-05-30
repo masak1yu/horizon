@@ -1,7 +1,6 @@
 #include "horizon_vm/memory.h"
 #include "horizon_vm/opcodes.h"
 #include <cstring>
-#include <stdexcept>
 
 namespace horizon {
 
@@ -23,11 +22,18 @@ void WriteLE(uint8_t* p, T v) {
 
 Memory::Memory(size_t total_bytes) : physical_(total_bytes, 0) {}
 
+void Memory::RaiseFault(uint8_t vector, std::string msg, uint32_t addr) {
+  if (!has_fault_) {
+    has_fault_     = true;
+    pending_fault_ = HorizonFault(vector, std::move(msg), addr);
+  }
+}
+
 uint32_t Memory::AllocPages(uint32_t count, uint8_t /*flags*/) {
   uint32_t offset = alloc_ptr_;
   uint32_t size   = count * kPageSize;
   if (static_cast<size_t>(offset) + size > physical_.size())
-    throw std::runtime_error("Memory: out of physical memory");
+    __builtin_trap();  // physical memory exhausted — unrecoverable configuration error
   alloc_ptr_ += size;
   return offset;
 }
@@ -41,52 +47,56 @@ void Memory::UnmapPage(uint32_t virt_addr) {
   page_table_.erase(virt_addr >> 12);
 }
 
-uint32_t Memory::Resolve(uint32_t virt_addr, uint8_t access_flags, Ring ring) const {
+uint32_t Memory::Resolve(uint32_t virt_addr, uint8_t access_flags, Ring ring) {
   uint32_t page_num = virt_addr >> 12;
   uint32_t offset   = virt_addr & 0xFFF;
 
   auto it = page_table_.find(page_num);
   if (it == page_table_.end() || !(it->second.flags & PAGE_PRESENT)) {
-    throw HorizonFault(static_cast<uint8_t>(InterruptVector::PageFault),
-                       "Page not mapped: 0x" + std::to_string(virt_addr), virt_addr);
+    RaiseFault(static_cast<uint8_t>(InterruptVector::PageFault),
+               "Page not mapped: 0x" + std::to_string(virt_addr), virt_addr);
+    return 0;
   }
   const auto& entry = it->second;
   if (ring == Ring::User && !(entry.flags & PAGE_USER)) {
-    throw HorizonFault(static_cast<uint8_t>(InterruptVector::GPF),
-                       "Ring 2 access to kernel page", virt_addr);
+    RaiseFault(static_cast<uint8_t>(InterruptVector::GPF),
+               "Ring 2 access to kernel page", virt_addr);
+    return 0;
   }
   if ((access_flags & PAGE_WRITE) && !(entry.flags & PAGE_WRITE)) {
-    throw HorizonFault(static_cast<uint8_t>(InterruptVector::GPF),
-                       "Write to read-only page", virt_addr);
+    RaiseFault(static_cast<uint8_t>(InterruptVector::GPF),
+               "Write to read-only page", virt_addr);
+    return 0;
   }
   if ((access_flags & PAGE_EXEC) && !(entry.flags & PAGE_EXEC)) {
-    throw HorizonFault(static_cast<uint8_t>(InterruptVector::GPF),
-                       "Execute on non-exec page", virt_addr);
+    RaiseFault(static_cast<uint8_t>(InterruptVector::GPF),
+               "Execute on non-exec page", virt_addr);
+    return 0;
   }
   return entry.phys_offset + offset;
 }
 
-uint8_t Memory::Read8(uint32_t virt, Ring ring) const {
+uint8_t Memory::Read8(uint32_t virt, Ring ring) {
   return physical_[Resolve(virt, PAGE_READ, ring)];
 }
 
-uint16_t Memory::Read16(uint32_t virt, Ring ring) const {
+uint16_t Memory::Read16(uint32_t virt, Ring ring) {
   return ReadLE<uint16_t>(&physical_[Resolve(virt, PAGE_READ, ring)]);
 }
 
-int32_t Memory::Read32(uint32_t virt, Ring ring) const {
+int32_t Memory::Read32(uint32_t virt, Ring ring) {
   return ReadLE<int32_t>(&physical_[Resolve(virt, PAGE_READ, ring)]);
 }
 
-int64_t Memory::Read64(uint32_t virt, Ring ring) const {
+int64_t Memory::Read64(uint32_t virt, Ring ring) {
   return ReadLE<int64_t>(&physical_[Resolve(virt, PAGE_READ, ring)]);
 }
 
-float Memory::ReadF32(uint32_t virt, Ring ring) const {
+float Memory::ReadF32(uint32_t virt, Ring ring) {
   return ReadLE<float>(&physical_[Resolve(virt, PAGE_READ, ring)]);
 }
 
-double Memory::ReadF64(uint32_t virt, Ring ring) const {
+double Memory::ReadF64(uint32_t virt, Ring ring) {
   return ReadLE<double>(&physical_[Resolve(virt, PAGE_READ, ring)]);
 }
 

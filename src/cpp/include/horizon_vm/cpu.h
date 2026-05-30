@@ -29,11 +29,13 @@ class CPU {
   // Run until halted or max_steps reached.
   void Run(uint64_t max_steps = UINT64_MAX);
 
-  bool is_halted() const { return halted_; }
+  bool is_halted()   const { return halted_; }
+  bool has_fault()   const { return has_fault_; }
+  const HorizonFault& last_fault() const { return pending_fault_; }
 
   void Push(Value v);
   Value Pop();
-  Value Peek() const;
+  Value Peek();
 
   const std::vector<Value>& operand_stack() const { return operand_stack_; }
 
@@ -42,7 +44,8 @@ class CPU {
   bool     interrupts_enabled = true;
 
  private:
-  void RequireRing(Ring min_ring, const char* op) const;
+  void RaiseFault(uint8_t vector, std::string msg, uint32_t addr = 0);
+  void RequireRing(Ring min_ring, const char* op);
 
   uint8_t  ReadPcByte();
   uint16_t ReadPcU16();
@@ -63,7 +66,9 @@ class CPU {
   uint32_t fp_    = 0;
   uint32_t ivt_   = 0;
   uint32_t ptbr_  = 0;
-  bool     halted_ = false;
+  bool     halted_   = false;
+  bool     has_fault_ = false;
+  HorizonFault pending_fault_;
 };
 
 }  // namespace horizon

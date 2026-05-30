@@ -2,6 +2,8 @@
 #include "memory.h"
 #include "opcodes.h"
 #include <cstdint>
+#include <optional>
+#include <string>
 #include <vector>
 
 namespace horizon {
@@ -52,15 +54,17 @@ struct LoadedModule {
 };
 
 // Parse a .hzbc buffer into a Module descriptor.
-// Throws std::runtime_error on invalid format.
-Module ParseModule(const uint8_t* data, size_t size);
+// Returns nullopt and writes to *error on invalid format.
+std::optional<Module> ParseModule(const uint8_t* data, size_t size,
+                                  std::string* error = nullptr);
 
 // Load a parsed module into a Memory instance.
 // virt_base: where to place the module in virtual address space.
-// Throws std::runtime_error on ring/permission error.
-LoadedModule LoadModule(const Module& module,
-                        Memory& mem,
-                        uint32_t virt_base,
-                        Ring current_ring);
+// Returns nullopt and writes to *error on ring/permission error.
+std::optional<LoadedModule> LoadModule(const Module& module,
+                                       Memory& mem,
+                                       uint32_t virt_base,
+                                       Ring current_ring,
+                                       std::string* error = nullptr);
 
 }  // namespace horizon

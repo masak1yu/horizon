@@ -1,7 +1,6 @@
 #include "horizon_vm/cpu.h"
 #include <cassert>
 #include <cmath>
-#include <stdexcept>
 
 namespace horizon {
 
@@ -10,31 +9,43 @@ CPU::CPU(Memory& mem, HypercallHandler on_hypercall, SyscallHandler on_syscall)
       on_hypercall_(std::move(on_hypercall)),
       on_syscall_(std::move(on_syscall)) {}
 
+void CPU::RaiseFault(uint8_t vector, std::string msg, uint32_t addr) {
+  if (!has_fault_) {
+    has_fault_     = true;
+    pending_fault_ = HorizonFault(vector, std::move(msg), addr);
+  }
+  halted_ = true;
+}
+
 void CPU::Push(Value v) {
   operand_stack_.push_back(v);
 }
 
 Value CPU::Pop() {
-  if (operand_stack_.empty())
-    throw HorizonFault(static_cast<uint8_t>(InterruptVector::StackFault),
-                       "Operand stack underflow");
+  if (operand_stack_.empty()) {
+    RaiseFault(static_cast<uint8_t>(InterruptVector::StackFault),
+               "Operand stack underflow");
+    return Value::from_i32(0);
+  }
   Value v = operand_stack_.back();
   operand_stack_.pop_back();
   return v;
 }
 
-Value CPU::Peek() const {
-  if (operand_stack_.empty())
-    throw HorizonFault(static_cast<uint8_t>(InterruptVector::StackFault),
-                       "Operand stack empty");
+Value CPU::Peek() {
+  if (operand_stack_.empty()) {
+    RaiseFault(static_cast<uint8_t>(InterruptVector::StackFault),
+               "Operand stack empty");
+    return Value::from_i32(0);
+  }
   return operand_stack_.back();
 }
 
-void CPU::RequireRing(Ring min_ring, const char* op) const {
+void CPU::RequireRing(Ring min_ring, const char* op) {
   if (ring > min_ring) {
-    throw HorizonFault(static_cast<uint8_t>(InterruptVector::GPF),
-                       std::string(op) + " requires Ring " +
-                       std::to_string(static_cast<int>(min_ring)));
+    RaiseFault(static_cast<uint8_t>(InterruptVector::GPF),
+               std::string(op) + " requires Ring " +
+               std::to_string(static_cast<int>(min_ring)));
   }
 }
 
@@ -111,24 +122,24 @@ bool CPU::Step() {
   case Opcode::I32_MUL: { int32_t b = Pop().as_i32(), a = Pop().as_i32(); Push(Value::from_i32(a * b)); break; }
   case Opcode::I32_DIV_S: {
     int32_t b = Pop().as_i32(), a = Pop().as_i32();
-    if (b == 0) throw HorizonFault(static_cast<uint8_t>(InterruptVector::DivideByZero), "I32.DIV_S by zero");
+    if (b == 0) { RaiseFault(static_cast<uint8_t>(InterruptVector::DivideByZero), "I32.DIV_S by zero"); break; }
     Push(Value::from_i32(a / b)); break;
   }
   case Opcode::I32_DIV_U: {
     uint32_t b = static_cast<uint32_t>(Pop().as_i32());
     uint32_t a = static_cast<uint32_t>(Pop().as_i32());
-    if (b == 0) throw HorizonFault(static_cast<uint8_t>(InterruptVector::DivideByZero), "I32.DIV_U by zero");
+    if (b == 0) { RaiseFault(static_cast<uint8_t>(InterruptVector::DivideByZero), "I32.DIV_U by zero"); break; }
     Push(Value::from_i32(static_cast<int32_t>(a / b))); break;
   }
   case Opcode::I32_REM_S: {
     int32_t b = Pop().as_i32(), a = Pop().as_i32();
-    if (b == 0) throw HorizonFault(static_cast<uint8_t>(InterruptVector::DivideByZero), "I32.REM_S by zero");
+    if (b == 0) { RaiseFault(static_cast<uint8_t>(InterruptVector::DivideByZero), "I32.REM_S by zero"); break; }
     Push(Value::from_i32(a % b)); break;
   }
   case Opcode::I32_REM_U: {
     uint32_t b = static_cast<uint32_t>(Pop().as_i32());
     uint32_t a = static_cast<uint32_t>(Pop().as_i32());
-    if (b == 0) throw HorizonFault(static_cast<uint8_t>(InterruptVector::DivideByZero), "I32.REM_U by zero");
+    if (b == 0) { RaiseFault(static_cast<uint8_t>(InterruptVector::DivideByZero), "I32.REM_U by zero"); break; }
     Push(Value::from_i32(static_cast<int32_t>(a % b))); break;
   }
   case Opcode::I32_NEG: { Push(Value::from_i32(-Pop().as_i32())); break; }
@@ -139,24 +150,24 @@ bool CPU::Step() {
   case Opcode::I64_MUL: { int64_t b = Pop().as_i64(), a = Pop().as_i64(); Push(Value::from_i64(a * b)); break; }
   case Opcode::I64_DIV_S: {
     int64_t b = Pop().as_i64(), a = Pop().as_i64();
-    if (b == 0) throw HorizonFault(static_cast<uint8_t>(InterruptVector::DivideByZero), "I64.DIV_S by zero");
+    if (b == 0) { RaiseFault(static_cast<uint8_t>(InterruptVector::DivideByZero), "I64.DIV_S by zero"); break; }
     Push(Value::from_i64(a / b)); break;
   }
   case Opcode::I64_DIV_U: {
     uint64_t b = static_cast<uint64_t>(Pop().as_i64());
     uint64_t a = static_cast<uint64_t>(Pop().as_i64());
-    if (b == 0) throw HorizonFault(static_cast<uint8_t>(InterruptVector::DivideByZero), "I64.DIV_U by zero");
+    if (b == 0) { RaiseFault(static_cast<uint8_t>(InterruptVector::DivideByZero), "I64.DIV_U by zero"); break; }
     Push(Value::from_i64(static_cast<int64_t>(a / b))); break;
   }
   case Opcode::I64_REM_S: {
     int64_t b = Pop().as_i64(), a = Pop().as_i64();
-    if (b == 0) throw HorizonFault(static_cast<uint8_t>(InterruptVector::DivideByZero), "I64.REM_S by zero");
+    if (b == 0) { RaiseFault(static_cast<uint8_t>(InterruptVector::DivideByZero), "I64.REM_S by zero"); break; }
     Push(Value::from_i64(a % b)); break;
   }
   case Opcode::I64_REM_U: {
     uint64_t b = static_cast<uint64_t>(Pop().as_i64());
     uint64_t a = static_cast<uint64_t>(Pop().as_i64());
-    if (b == 0) throw HorizonFault(static_cast<uint8_t>(InterruptVector::DivideByZero), "I64.REM_U by zero");
+    if (b == 0) { RaiseFault(static_cast<uint8_t>(InterruptVector::DivideByZero), "I64.REM_U by zero"); break; }
     Push(Value::from_i64(static_cast<int64_t>(a % b))); break;
   }
   case Opcode::I64_NEG: { Push(Value::from_i64(-Pop().as_i64())); break; }
@@ -297,24 +308,30 @@ bool CPU::Step() {
   case Opcode::LOCAL_GET: {
     uint16_t idx = ReadPcU16();
     auto& frame = locals_.back();
-    if (idx >= frame.size())
-      throw HorizonFault(static_cast<uint8_t>(InterruptVector::GPF), "LOCAL.GET out of bounds");
+    if (idx >= frame.size()) {
+      RaiseFault(static_cast<uint8_t>(InterruptVector::GPF), "LOCAL.GET out of bounds");
+      break;
+    }
     Push(frame[idx]);
     break;
   }
   case Opcode::LOCAL_SET: {
     uint16_t idx = ReadPcU16();
     auto& frame = locals_.back();
-    if (idx >= frame.size())
-      throw HorizonFault(static_cast<uint8_t>(InterruptVector::GPF), "LOCAL.SET out of bounds");
+    if (idx >= frame.size()) {
+      RaiseFault(static_cast<uint8_t>(InterruptVector::GPF), "LOCAL.SET out of bounds");
+      break;
+    }
     frame[idx] = Pop();
     break;
   }
   case Opcode::ARG_GET: {
     uint16_t idx = ReadPcU16();
     int stack_idx = static_cast<int>(fp_) - 1 - idx;
-    if (stack_idx < 0 || static_cast<size_t>(stack_idx) >= operand_stack_.size())
-      throw HorizonFault(static_cast<uint8_t>(InterruptVector::GPF), "ARG.GET out of bounds");
+    if (stack_idx < 0 || static_cast<size_t>(stack_idx) >= operand_stack_.size()) {
+      RaiseFault(static_cast<uint8_t>(InterruptVector::GPF), "ARG.GET out of bounds");
+      break;
+    }
     Push(operand_stack_[stack_idx]);
     break;
   }
@@ -353,8 +370,10 @@ bool CPU::Step() {
     break;
   }
   case Opcode::SYSRET: {
-    if (call_stack_.empty())
-      throw HorizonFault(static_cast<uint8_t>(InterruptVector::StackFault), "SYSRET with empty call stack");
+    if (call_stack_.empty()) {
+      RaiseFault(static_cast<uint8_t>(InterruptVector::StackFault), "SYSRET with empty call stack");
+      break;
+    }
     CallFrame frame = call_stack_.back(); call_stack_.pop_back();
     locals_.pop_back();
     pc   = frame.ret_pc;
@@ -364,6 +383,7 @@ bool CPU::Step() {
   }
   case Opcode::HYPERCALL: {
     RequireRing(Ring::Kernel, "HYPERCALL");
+    if (has_fault_) break;
     uint16_t num = ReadPcU16();
     uint32_t cur_fp = static_cast<uint32_t>(operand_stack_.size());
     call_stack_.push_back({pc, ring, fp_, cur_fp});
@@ -373,8 +393,10 @@ bool CPU::Step() {
     break;
   }
   case Opcode::HYPERET: {
-    if (call_stack_.empty())
-      throw HorizonFault(static_cast<uint8_t>(InterruptVector::StackFault), "HYPERET with empty call stack");
+    if (call_stack_.empty()) {
+      RaiseFault(static_cast<uint8_t>(InterruptVector::StackFault), "HYPERET with empty call stack");
+      break;
+    }
     CallFrame frame = call_stack_.back(); call_stack_.pop_back();
     locals_.pop_back();
     pc   = frame.ret_pc;
@@ -383,10 +405,11 @@ bool CPU::Step() {
     break;
   }
   case Opcode::RING_GET: { Push(Value::from_i32(static_cast<int32_t>(ring))); break; }
-  case Opcode::CLI: { RequireRing(Ring::Kernel, "CLI"); interrupts_enabled = false; break; }
-  case Opcode::STI: { RequireRing(Ring::Kernel, "STI"); interrupts_enabled = true;  break; }
+  case Opcode::CLI: { RequireRing(Ring::Kernel, "CLI"); if (!has_fault_) interrupts_enabled = false; break; }
+  case Opcode::STI: { RequireRing(Ring::Kernel, "STI"); if (!has_fault_) interrupts_enabled = true;  break; }
   case Opcode::PAGE_MAP: {
     RequireRing(Ring::Hypervisor, "PAGE.MAP");
+    if (has_fault_) break;
     int32_t  flags = Pop().as_i32();
     uint32_t virt  = Pop().as_ptr();
     uint32_t phys  = Pop().as_ptr();
@@ -395,12 +418,13 @@ bool CPU::Step() {
   }
   case Opcode::PAGE_UNMAP: {
     RequireRing(Ring::Hypervisor, "PAGE.UNMAP");
+    if (has_fault_) break;
     mem_.UnmapPage(Pop().as_ptr());
     break;
   }
-  case Opcode::PTBR_SET: { RequireRing(Ring::Hypervisor, "PTBR.SET"); ptbr_ = Pop().as_ptr(); break; }
-  case Opcode::PTBR_GET: { RequireRing(Ring::Hypervisor, "PTBR.GET"); Push(Value::from_ptr(ptbr_)); break; }
-  case Opcode::IVT_SET:  { RequireRing(Ring::Hypervisor, "IVT.SET");  ivt_  = Pop().as_ptr(); break; }
+  case Opcode::PTBR_SET: { RequireRing(Ring::Hypervisor, "PTBR.SET"); if (!has_fault_) ptbr_ = Pop().as_ptr(); break; }
+  case Opcode::PTBR_GET: { RequireRing(Ring::Hypervisor, "PTBR.GET"); if (!has_fault_) Push(Value::from_ptr(ptbr_)); break; }
+  case Opcode::IVT_SET:  { RequireRing(Ring::Hypervisor, "IVT.SET");  if (!has_fault_) ivt_  = Pop().as_ptr(); break; }
   case Opcode::INT: {
     uint8_t  vec         = ReadPcByte();
     uint32_t handler_addr = static_cast<uint32_t>(mem_.Read32(ivt_ + vec * 4, Ring::Hypervisor));
@@ -411,8 +435,10 @@ bool CPU::Step() {
     break;
   }
   case Opcode::IRET: {
-    if (call_stack_.empty())
-      throw HorizonFault(static_cast<uint8_t>(InterruptVector::StackFault), "IRET with empty call stack");
+    if (call_stack_.empty()) {
+      RaiseFault(static_cast<uint8_t>(InterruptVector::StackFault), "IRET with empty call stack");
+      break;
+    }
     CallFrame frame = call_stack_.back(); call_stack_.pop_back();
     locals_.pop_back();
     pc   = frame.ret_pc;
@@ -422,11 +448,17 @@ bool CPU::Step() {
   }
 
   default:
-    throw HorizonFault(static_cast<uint8_t>(InterruptVector::GPF),
-                       "Unknown opcode: 0x" + std::to_string(static_cast<uint8_t>(op)));
+    RaiseFault(static_cast<uint8_t>(InterruptVector::GPF),
+               "Unknown opcode: 0x" + std::to_string(static_cast<uint8_t>(op)));
+    break;
   }
 
-  return true;
+  if (!has_fault_ && mem_.has_fault()) {
+    HorizonFault mf = mem_.take_fault();
+    RaiseFault(mf.vector, std::move(mf.message), mf.address);
+  }
+
+  return !has_fault_;
 }
 
 void CPU::Run(uint64_t max_steps) {

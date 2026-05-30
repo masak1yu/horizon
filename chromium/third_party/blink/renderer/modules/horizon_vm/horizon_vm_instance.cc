@@ -34,14 +34,15 @@ HorizonVMInstance* HorizonVMInstance::Create(
 
   auto raw_mem = std::make_shared<horizon::Memory>(kDefaultMemoryBytes);
 
-  horizon::LoadedModule loaded;
-  try {
-    loaded = horizon::LoadModule(module.GetModule(), *raw_mem,
-                                  kCodeVirtBase, horizon::Ring::User);
-  } catch (const std::exception& e) {
-    exception_state.ThrowTypeError(String::FromUTF8(e.what()));
+  std::string load_error;
+  auto maybe_loaded = horizon::LoadModule(module.GetModule(), *raw_mem,
+                                           kCodeVirtBase, horizon::Ring::User,
+                                           &load_error);
+  if (!maybe_loaded) {
+    exception_state.ThrowTypeError(String::FromUTF8(load_error));
     return nullptr;
   }
+  horizon::LoadedModule loaded = std::move(*maybe_loaded);
 
   if (loaded.entry_virt_addr == 0xFFFFFFFFu) {
     exception_state.ThrowTypeError(
@@ -106,25 +107,14 @@ ScriptPromise<IDLUndefined> HorizonVMInstance::run(
 void HorizonVMInstance::RunOnWorkerThread(
     ScriptPromiseResolver<IDLUndefined>* resolver) {
   // This runs on a ThreadPool worker thread, NOT the main thread.
-  try {
-    cpu_->Run();  // Runs until halted (HALT or top-level RET)
+  cpu_->Run();  // Runs until halted (HALT or top-level RET)
 
-    main_task_runner_->PostTask(
-        FROM_HERE,
-        WTF::CrossThreadBindOnce(
-            [](ScriptPromiseResolver<IDLUndefined>* resolver,
-               HorizonVMInstance* instance) {
-              instance->state_ = State::kHalted;
-              instance->DispatchEvent(*Event::Create(event_type_names::kHalt));
-              resolver->Resolve();
-            },
-            WrapCrossThreadPersistent(resolver),
-            WrapCrossThreadPersistent(this)));
-
-  } catch (const horizon::HorizonFault& fault) {
+  if (cpu_->has_fault()) {
+    const horizon::HorizonFault& fault = cpu_->last_fault();
     String msg = String::Format(
         "VM Fault (vector 0x%02X): %s",
         fault.vector, fault.message.c_str());
+    uint8_t vector = fault.vector;
 
     main_task_runner_->PostTask(
         FROM_HERE,
@@ -141,7 +131,19 @@ void HorizonVMInstance::RunOnWorkerThread(
             WrapCrossThreadPersistent(resolver),
             WrapCrossThreadPersistent(this),
             std::move(msg),
-            fault.vector));
+            vector));
+  } else {
+    main_task_runner_->PostTask(
+        FROM_HERE,
+        WTF::CrossThreadBindOnce(
+            [](ScriptPromiseResolver<IDLUndefined>* resolver,
+               HorizonVMInstance* instance) {
+              instance->state_ = State::kHalted;
+              instance->DispatchEvent(*Event::Create(event_type_names::kHalt));
+              resolver->Resolve();
+            },
+            WrapCrossThreadPersistent(resolver),
+            WrapCrossThreadPersistent(this)));
   }
 }
 

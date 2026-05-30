@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 #include <cstring>
-#include <stdexcept>
 #include <string>
 
 namespace horizon {
@@ -39,31 +38,31 @@ struct Value {
 
 inline int32_t Value::as_i32() const {
   if (kind != ValueKind::I32 && kind != ValueKind::Ptr)
-    throw std::runtime_error("Value: expected i32/ptr");
+    __builtin_trap();
   return i32;
 }
 
 inline int64_t Value::as_i64() const {
   if (kind != ValueKind::I64)
-    throw std::runtime_error("Value: expected i64");
+    __builtin_trap();
   return i64;
 }
 
 inline float Value::as_f32() const {
   if (kind != ValueKind::F32)
-    throw std::runtime_error("Value: expected f32");
+    __builtin_trap();
   return f32;
 }
 
 inline double Value::as_f64() const {
   if (kind != ValueKind::F64)
-    throw std::runtime_error("Value: expected f64");
+    __builtin_trap();
   return f64;
 }
 
 inline uint32_t Value::as_ptr() const {
   if (kind != ValueKind::Ptr && kind != ValueKind::I32)
-    throw std::runtime_error("Value: expected ptr");
+    __builtin_trap();
   return ptr;
 }
 
@@ -79,15 +78,16 @@ enum PageFlags : uint8_t {
 
 constexpr uint32_t kPageSize = 0x1000;  // 4 KiB
 
-struct HorizonFault : std::exception {
+struct HorizonFault {
   uint8_t  vector;
   uint32_t address;
   std::string message;
 
+  HorizonFault() : vector(0), address(0) {}
   HorizonFault(uint8_t v, std::string msg, uint32_t addr = 0)
       : vector(v), address(addr), message(std::move(msg)) {}
 
-  const char* what() const noexcept override { return message.c_str(); }
+  const char* what() const { return message.c_str(); }
 };
 
 }  // namespace horizon
