@@ -7,6 +7,7 @@
     "build": "tsc && node esbuild.config.mjs",
     "build:ts": "tsc",
     "bundle": "node esbuild.config.mjs",
+    "build:extension": "tsc -p tsconfig.extension.json --noEmit && node extension-build.mjs",
     "test": "node --test dist/tests/vm.test.js",
     "run": "node dist/src/cli.js"
   },

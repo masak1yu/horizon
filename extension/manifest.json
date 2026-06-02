@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Horizon VM",
+  "version": "0.1.0",
+  "description": "Run Horizon VM programs natively in any web page.",
+  "icons": {
+    "16":  "icons/icon16.png",
+    "48":  "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "permissions": [],
+  "host_permissions": ["<all_urls>"]
+}

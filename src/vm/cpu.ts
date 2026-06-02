@@ -377,10 +377,10 @@ export class CPU {
       case Opcode.HYPERCALL: {
         const num = this.readPcU16();
         this.requireRing(Ring.Kernel, 'HYPERCALL');
-        this.callStack.push({ retPc: this.pc, retRing: this.ring, fp: this.fp, base: this.fp });
-        this.locals.push([]);
+        const savedRing = this.ring;
         this.ring = Ring.Hypervisor;
         this.onHypercall(num, this);
+        this.ring = savedRing; // JS handler runs inline; restore ring without a HYPERET.
         break;
       }
       case Opcode.HYPERET: {

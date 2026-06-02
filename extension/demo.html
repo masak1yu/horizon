@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Horizon VM Extension Demo</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; }
+    #output { border: 1px solid #ccc; padding: 16px; border-radius: 6px; min-height: 60px; }
+    #counter { font-size: 48px; font-weight: bold; color: #2563eb; text-align: center; }
+    button { padding: 8px 20px; font-size: 16px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Horizon VM — Extension Demo</h1>
+  <p>If the extension is active, the box below is written by HorizonVM assembly.</p>
+
+  <div id="output">Loading…</div>
+  <div id="counter">0</div>
+  <button id="inc-btn">Increment</button>
+
+  <!-- Static DOM manipulation: change #output text and style -->
+  <script type="application/horizon-vm">
+; String constants are written into a data-like area.
+; We use PUSH.PTR with literal addresses — the assembler
+; places string literals via a pseudo-op not yet in spec,
+; so here we demonstrate with HCALL_DOM_SET_TEXT using
+; pre-allocated string bytes in memory.
+;
+; For now: just do CONSOLE_LOG to prove the VM runs.
+PUSH.PTR msg
+HYPERCALL 0x00B0   ; HCALL_CONSOLE_LOG
+HALT
+
+msg: .string "HorizonVM content script is running!"
+  </script>
+</body>
+</html>

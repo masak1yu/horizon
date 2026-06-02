@@ -1,18 +1,52 @@
 import { Opcode } from '../vm/opcodes.js';
 
-type Token = { kind: 'mnemonic' | 'label' | 'labelref' | 'int' | 'float' | 'comment'; value: string; line: number };
+type Token = { kind: 'mnemonic' | 'label' | 'labelref' | 'int' | 'float' | 'string' | 'comment'; value: string; line: number };
 
 function tokenize(src: string): Token[] {
   const tokens: Token[] = [];
   const lines = src.split('\n');
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
     const lineNum = i + 1;
-    const stripped = line.replace(/;.*$/, '').trim();
-    if (!stripped) continue;
+    const line = lines[i];
+    let pos = 0;
 
-    const parts = stripped.split(/\s+/);
-    for (const part of parts) {
+    while (pos < line.length) {
+      // Skip whitespace
+      while (pos < line.length && /\s/.test(line[pos])) pos++;
+      if (pos >= line.length) break;
+
+      // Comment
+      if (line[pos] === ';') break;
+
+      // Quoted string literal
+      if (line[pos] === '"') {
+        pos++;
+        let s = '';
+        while (pos < line.length && line[pos] !== '"') {
+          if (line[pos] === '\\' && pos + 1 < line.length) {
+            switch (line[pos + 1]) {
+              case 'n':  s += '\n'; pos += 2; break;
+              case 't':  s += '\t'; pos += 2; break;
+              case '0':  s += '\0'; pos += 2; break;
+              case '\\': s += '\\'; pos += 2; break;
+              case '"':  s += '"';  pos += 2; break;
+              default:   s += line[pos]; pos++; break;
+            }
+          } else {
+            s += line[pos++];
+          }
+        }
+        pos++; // skip closing quote
+        tokens.push({ kind: 'string', value: s, line: lineNum });
+        continue;
+      }
+
+      // Read word
+      const start = pos;
+      while (pos < line.length && !/[\s;]/.test(line[pos]) && line[pos] !== '"') pos++;
+      const part = line.slice(start, pos);
+      if (!part) continue;
+
       if (part.endsWith(':')) {
         tokens.push({ kind: 'label', value: part.slice(0, -1), line: lineNum });
       } else if (part.startsWith('@')) {
@@ -68,13 +102,16 @@ export interface AssemblyResult {
   labels: Map<string, number>;
 }
 
-export function assemble(src: string): AssemblyResult {
+// Default base address matches the runner (0x01000000).
+export function assemble(src: string, baseAddr = 0x01000000): AssemblyResult {
   const tokens = tokenize(src);
   const labels = new Map<string, number>();
   const buf: number[] = [];
 
-  // Patch records: { bufOffset, labelName } for forward references
+  // PC-relative patches (JMP/CALL/Jcc)
   const patches: Array<{ bufOffset: number; labelName: string; instrStart: number }> = [];
+  // Absolute virtual-address patches (PUSH.PTR)
+  const absPatches: Array<{ bufOffset: number; labelName: string }> = [];
 
   let ti = 0;
 
@@ -102,6 +139,12 @@ export function assemble(src: string): AssemblyResult {
     throw new Error(`Line ${t.line}: expected @label, got "${t.value}"`);
   }
 
+  function expectString(): string {
+    const t = nextToken();
+    if (t.kind !== 'string') throw new Error(`Line ${t.line}: expected string literal, got ${t.kind} "${t.value}"`);
+    return t.value;
+  }
+
   while (ti < tokens.length) {
     const tok = tokens[ti++];
 
@@ -125,6 +168,22 @@ export function assemble(src: string): AssemblyResult {
       case 'PUSH.I64': buf.push(Opcode.PUSH_I64); writeI64LE(buf, BigInt(expectInt())); break;
       case 'PUSH.F32': buf.push(Opcode.PUSH_F32); writeF32LE(buf, expectFloat()); break;
       case 'PUSH.F64': buf.push(Opcode.PUSH_F64); writeF64LE(buf, expectFloat()); break;
+      case 'PUSH.PTR': {
+        // PUSH.PTR @label — pushes absolute virtual address (baseAddr + labelOffset) as i32.
+        buf.push(Opcode.PUSH_I32);
+        const ref = expectLabelRef();
+        absPatches.push({ bufOffset: buf.length, labelName: ref });
+        writeI32LE(buf, 0); // placeholder
+        break;
+      }
+      case '.STRING': {
+        // .string "text" — emits null-terminated UTF-8 bytes inline.
+        const s = expectString();
+        const enc = new TextEncoder().encode(s);
+        for (const b of enc) buf.push(b);
+        buf.push(0); // null terminator
+        break;
+      }
       case 'POP':    buf.push(Opcode.POP); break;
       case 'DUP':    buf.push(Opcode.DUP); break;
       case 'SWAP':   buf.push(Opcode.SWAP); break;
@@ -315,6 +374,15 @@ export function assemble(src: string): AssemblyResult {
     // Offset is relative to end of instruction (p.bufOffset + 4)
     const relOffset = targetAddr - (p.bufOffset + 4);
     patch32.setInt32(p.bufOffset, relOffset, true);
+  }
+
+  // Apply absolute virtual-address patches (PUSH.PTR @label)
+  for (const p of absPatches) {
+    const labelOffset = labels.get(p.labelName);
+    if (labelOffset === undefined) {
+      throw new Error(`Undefined label: "${p.labelName}"`);
+    }
+    patch32.setInt32(p.bufOffset, baseAddr + labelOffset, true);
   }
 
   return { code: codeArr, labels };
